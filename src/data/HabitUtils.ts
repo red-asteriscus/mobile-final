@@ -1,156 +1,210 @@
+// src/data/HabitUtils.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { NotificationTriggerInput } from 'expo-notifications';
-import { Habit } from '../types/HabitTypes'; // Assuming Habit is defined here
+import { Platform } from 'react-native'; // Import Platform
+import { Habit } from '../types/HabitTypes';
 
-// FIX 5: Define the constant key
-const HABITS_KEY = '@HabitTracker:habits';
-
-// FIX 2: Define the utility function
-const getSecondsUntilNineAM = (): number => {
-  const now = new Date();
-  const nineAM = new Date();
-  nineAM.setHours(9, 0, 0, 0);
-
-  if (now.getTime() >= nineAM.getTime()) {
-    nineAM.setDate(nineAM.getDate() + 1);
-  }
-
-  const delayInSeconds = Math.round((nineAM.getTime() - now.getTime()) / 1000);
-  return delayInSeconds;
-};
-
-
-export const loadHabits = async (): Promise<Habit[]> => {
-try {
-const raw = await AsyncStorage.getItem(HABITS_KEY);
-if (!raw) return [];
-const parsed = JSON.parse(raw);
-return Array.isArray(parsed) ? parsed : [];
-} catch (err) {
-console.error('[HabitUtils] loadHabits error:', err);
-return [];
-}
-};
+const HABITS_KEY = '@HabitTracker:habits_v3';
 
 export const getTodayDate = (): string => {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export const calculateStreak = (dates: string[]): number => {
-  if (!dates || dates.length === 0) {
-    return 0;
+export const toDateKey = (d: Date) => {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+export const loadHabits = async (): Promise<Habit[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(HABITS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    // ensure defaults
+    return parsed.map((h: Partial<Habit>) => ({
+      completedDates: [],
+      notificationIds: [],
+      xp: 0,
+      badges: [],
+      notes: {},
+      createdAt: getTodayDate(),
+      ...h,
+    }));
+  } catch (err) {
+    console.error('[HabitUtils] load error', err);
+    return [];
+  }
+};
+
+export const saveHabits = async (habits: Habit[]) => {
+  try {
+    await AsyncStorage.setItem(HABITS_KEY, JSON.stringify(habits ?? []));
+  } catch (err) {
+    console.error('[HabitUtils] save error', err);
+  }
+};
+
+// Schedule notifications for provided times (strings "HH:MM"). returns ids
+export const scheduleNotificationsForTimes = async (title: string, times: string[]): Promise<string[]> => {
+  // FIX 1: Platform check to prevent crash on web
+  if (Platform.OS === 'web') {
+    console.warn("Notifications are not supported on the web platform. Skipping scheduling.");
+    return [];
   }
 
-  // Helper to convert 'YYYY-MM-DD' to a Date object (midnight UTC)
-  const parseDate = (dateString: string): Date => {
-    // Adding 'T00:00:00.000Z' ensures dates are treated as UTC midnight,
-    // avoiding timezone issues that shift the day.
-    return new Date(`${dateString}T00:00:00.000Z`);
-  };
-
-  // Convert all recorded dates to millisecond timestamps for easy comparison
-  const completedTimestamps = dates
-    .map(dateStr => parseDate(dateStr).getTime())
-    // Sort and remove duplicates to ensure correct sequential checks
-    .filter((ts, i, arr) => arr.indexOf(ts) === i)
-    .sort((a, b) => b - a); // Sort descending (most recent first)
-
-
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  let streak = 0;
-
-  // 1. Determine the start point: Today or Yesterday
-  const todayStr = getTodayDate();
-  const todayTS = parseDate(todayStr).getTime();
-  const yesterdayTS = todayTS - MS_PER_DAY;
-
-  let currentCheckingTS: number;
-  let currentStreak = 0;
-
-  // Check if today is completed
-  if (completedTimestamps.includes(todayTS)) {
-    currentStreak = 1;
-    currentCheckingTS = yesterdayTS; // Start checking from yesterday
-  } 
-  // Check if the habit was completed yesterday (allows for streak to continue after missing today)
-  else if (completedTimestamps.includes(yesterdayTS)) {
-    currentCheckingTS = yesterdayTS;
-  } 
-  // If not completed today or yesterday, the streak is 0 unless we find a day
-  else {
-    return 0;
-  }
-  
-  // Find the index of the most recent day included in the initial check
-  const startIndex = completedTimestamps.findIndex(ts => ts === todayTS || ts === yesterdayTS);
-  if (startIndex === -1) return 0; // Should not happen if the previous logic passes, but safety first
-
-  // 2. Iterate backward from the start point
-  for (let i = startIndex + currentStreak; i < completedTimestamps.length; i++) {
-    const dayBefore = completedTimestamps[i];
+  const ids: string[] = [];
+  for (const t of times) {
+    const [hh, mm] = t.split(':').map(Number);
     
-    // Check if the current completed day is the day before the day we are checking
-    if (dayBefore === currentCheckingTS) {
-      currentStreak++;
-      // Move the checking day back one more day
-      currentCheckingTS -= MS_PER_DAY;
-    } else if (dayBefore < currentCheckingTS) {
-      // If the current completed date is older than the date we need, 
-      // the streak is broken, so we stop.
-      break; 
+    // FIX 2: Use 'as any' to bypass the persistent NotificationTriggerInput TypeScript error
+    const trigger: any = { 
+        type: 'time', 
+        hour: hh, 
+        minute: mm, 
+        repeats: true 
+    };
+
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title: 'Habit Reminder', body: `Time for: ${title}`, sound: true },
+      trigger,
+    });
+    ids.push(id);
+  }
+  return ids;
+};
+
+export const cancelScheduledNotifications = async (ids?: string[] | null) => {
+  if (!ids) return;
+  for (const id of ids) {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    } catch (err) {
+      console.error('[HabitUtils] cancel notif error', err);
     }
   }
-
-  return currentStreak;
 };
 
-export const saveHabits = async (habits: Habit[]): Promise<void> => {
-try {
-await AsyncStorage.setItem(HABITS_KEY, JSON.stringify(habits ?? []));
-} catch (err) {
-console.error('[HabitUtils] saveHabits error:', err);
-}
+// ---------- Streak & weekly helpers ----------
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export const calculateStreak = (habit: Habit): number => {
+  const dates = (habit.completedDates || []).slice().sort().reverse();
+  if (!dates.length) return 0;
+
+  const todayKey = getTodayDate();
+  // start checking from today backward
+  let streak = 0;
+  let current = new Date(); current.setHours(0, 0, 0, 0);
+
+  const setDates = new Set((habit.completedDates || []));
+  while (true) {
+    const key = toDateKey(current);
+    let scheduled = true;
+    if (habit.frequency === 'custom' && habit.weekdays && habit.weekdays.length) {
+      scheduled = habit.weekdays.includes(current.getDay());
+    }
+    if (scheduled) {
+      if (setDates.has(key)) streak++;
+      else break;
+    }
+    current = new Date(current.getTime() - MS_PER_DAY);
+    if (streak > 365) break;
+  }
+  return streak;
+};
+
+export const weeklyCompletion = (habit: Habit) => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()); // Sunday
+  const end = new Date(start.getTime() + 7 * MS_PER_DAY);
+  let scheduled = 0;
+  if (habit.frequency === 'daily') scheduled = 7;
+  else if (habit.frequency === 'custom' && habit.weekdays) {
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(start.getTime() + i * MS_PER_DAY);
+      if ((habit.weekdays || []).includes(day.getDay())) scheduled++;
+    }
+  } else scheduled = 7;
+
+  const completed = (habit.completedDates || []).filter((s) => {
+    const ts = new Date(`${s}T00:00:00`).getTime();
+    return ts >= start.getTime() && ts < end.getTime();
+  }).length;
+
+  const rate = scheduled === 0 ? 0 : Math.round((completed / scheduled) * 100);
+  return { completed, scheduled, rate };
+};
+
+// FIX 3: Exported member 'generateInsights'
+export const generateInsights = (habits: Habit[]) => {
+  const total = habits.length;
+  const doneToday = habits.filter((h) => h.completedDates.includes(getTodayDate())).length;
+
+  // Calculate Top Category
+  const catCounts: Record<string, number> = {};
+  habits.forEach((h) => {
+    catCounts[h.category] = (catCounts[h.category] || 0) + 1;
+  });
+  const topCategory = Object.keys(catCounts).sort((a, b) => catCounts[b] - catCounts[a])[0];
+
+  // Calculate Busiest Day (based on historical completions)
+  const dayCounts: Record<string, number> = {};
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  habits.forEach((h) => {
+    h.completedDates.forEach((dateStr) => {
+      const d = new Date(dateStr);
+      const dayName = days[d.getDay()];
+      dayCounts[dayName] = (dayCounts[dayName] || 0) + 1;
+    });
+  });
+  const busiestDay = Object.keys(dayCounts).sort((a, b) => dayCounts[b] - dayCounts[a])[0];
+
+  return {
+    total,
+    doneToday,
+    topCategory: topCategory || null,
+    busiestDay: busiestDay || null,
+  };
 };
 
 
-export const scheduleNotification = async (habitTitle: string): Promise<string | undefined> => {
-try {
-const secondsDelay = getSecondsUntilNineAM();
-const triggerObject = {
-type: 'interval' as const,
-seconds: secondsDelay,
-repeats: true,
-};
+// ---------- Badge awarding ----------
+type AwardResult = { awarded: string[]; updatedHabit?: Habit };
 
-// FIX 1 & 4: Notifications and NotificationTriggerInput are now imported
-const id = await Notifications.scheduleNotificationAsync({
-content: {
-title: 'Habit Reminder',
-body: `Time for: ${habitTitle}`,
-sound: true,
-},
-trigger: triggerObject as unknown as NotificationTriggerInput,
-});
+export const awardBadgesForHabit = (habit: Habit): AwardResult => {
+  const awarded: string[] = [];
+  const updated = { ...habit, badges: [...(habit.badges || [])], xp: habit.xp || 0 };
 
+  const streak = calculateStreak(habit);
 
-return id;
-} catch (err) {
-console.error('[HabitUtils] scheduleNotification error:', err);
-return undefined;
-}
-};
+  // 3-day
+  if (streak >= 3 && !updated.badges.includes('3-day')) {
+    updated.badges.push('3-day');
+    updated.xp += 15;
+    awarded.push('3-day');
+  }
+  // 7-day
+  if (streak >= 7 && !updated.badges.includes('7-day')) {
+    updated.badges.push('7-day');
+    updated.xp += 35;
+    awarded.push('7-day');
+  }
+  // 30-day
+  if (streak >= 30 && !updated.badges.includes('30-day')) {
+    updated.badges.push('30-day');
+    updated.xp += 120;
+    awarded.push('30-day');
+  }
 
+  // Perfect week
+  const wk = weeklyCompletion(habit);
+  if (wk.scheduled > 0 && wk.completed === wk.scheduled && !updated.badges.includes('perfect-week')) {
+    updated.badges.push('perfect-week');
+    updated.xp += 50;
+    awarded.push('perfect-week');
+  }
 
-export const cancelScheduledNotification = async (notificationId?: string): Promise<void> => {
-try {
-if (!notificationId) return;
-await Notifications.cancelScheduledNotificationAsync(notificationId);
-} catch (err) {
-console.error('[HabitUtils] cancelScheduledNotification error:', err);
-}
+  // Return only if awarded anything
+  return { awarded, updatedHabit: updated };
 };

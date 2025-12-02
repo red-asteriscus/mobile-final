@@ -1,20 +1,26 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, Animated } from 'react-native';
 import { StatsProps } from '../types/HabitTypes';
-import { getTodayDate } from '../data/HabitUtils';
+// FIX: 'generateInsights' is now correctly exported and imported
+import { getTodayDate, weeklyCompletion, generateInsights } from '../data/HabitUtils';
+import CalendarHeatmap from '../components/CalendarHeatmap';
 
 const StatsScreen: React.FC<StatsProps> = ({ habits = [] }) => {
   const total = habits.length;
-  const doneToday = habits.filter(h => h.completedDates.includes(getTodayDate())).length;
-  const rate = total === 0 ? 0 : (doneToday / total) * 100;
+  const doneToday = habits.filter((h) => h.completedDates.includes(getTodayDate())).length;
+  const rate = total === 0 ? 0 : Math.round((doneToday / total) * 100);
 
   const animWidth = new Animated.Value(0);
 
-  Animated.timing(animWidth, {
-    toValue: rate,
-    duration: 900,
-    useNativeDriver: false,
-  }).start();
+  useEffect(() => {
+    Animated.timing(animWidth, {
+      toValue: rate,
+      duration: 900,
+      useNativeDriver: false,
+    }).start();
+  }, [rate]);
+
+  const insights = generateInsights(habits);
 
   return (
     <View style={styles.container}>
@@ -34,24 +40,39 @@ const StatsScreen: React.FC<StatsProps> = ({ habits = [] }) => {
         <Text style={styles.small}>{doneToday} of {total} habits done</Text>
       </View>
 
-      <Text style={styles.sub}>Habit Breakdown</Text>
+      <Text style={styles.sub}>Weekly Breakdown</Text>
 
       <ScrollView style={{ marginTop: 10 }}>
-        {habits.map(h => (
-          <View key={h.id} style={styles.item}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 26, marginRight: 10 }}>{h.emoji}</Text>
-              <View>
-                <Text style={styles.itemTitle}>{h.title}</Text>
-                <Text style={styles.reminder}>Category: {h.category}</Text>
+        {habits.map((h) => {
+          const wk = weeklyCompletion(h);
+          return (
+            <View key={h.id} style={styles.item}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 26, marginRight: 10 }}>{h.emoji}</Text>
+                <View>
+                  <Text style={styles.itemTitle}>{h.title}</Text>
+                  <Text style={styles.reminder}>{h.category} • {h.frequency === 'daily' ? 'Daily' : 'Custom'}</Text>
+                </View>
+              </View>
+
+              <View style={{ marginTop: 8 }}>
+                <Text>Week: {wk.completed} / {wk.scheduled} ({wk.rate}%)</Text>
+                <CalendarHeatmap completedDates={h.completedDates} />
               </View>
             </View>
-            <Text>Completed: {h.completedDates.length} days</Text>
-          </View>
-        ))}
+          );
+        })}
 
         {total === 0 && <Text style={styles.empty}>No habits logged.</Text>}
       </ScrollView>
+
+      <View style={{ padding: 18 }}>
+        <Text style={{ fontWeight: '700', marginBottom: 8 }}>Insights</Text>
+        <Text>Total habits: {insights.total}</Text>
+        <Text>Done today: {insights.doneToday}</Text>
+        <Text>Top category: {insights.topCategory || '—'}</Text>
+        <Text>Busiest day: {insights.busiestDay || '—'}</Text>
+      </View>
     </View>
   );
 };
@@ -79,9 +100,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     padding: 14,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 16,
     elevation: 1,
-    flexDirection: 'column',
   },
   itemTitle: { fontWeight: '700' },
   reminder: { fontSize: 12, color: '#666' },

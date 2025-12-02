@@ -1,92 +1,103 @@
+// src/components/HabitCard.tsx
 import React, { useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Animated, 
-  LayoutAnimation 
-} from 'react-native'; // <-- Added Animated, LayoutAnimation
-import { Ionicons } from '@expo/vector-icons'; // <-- Added Ionicons
-import { Habit } from '../types/HabitTypes'; 
-import { getTodayDate } from '../data/HabitUtils'; // <-- Added getTodayDate import
+import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Habit } from '../types/HabitTypes';
+import { getTodayDate } from '../data/HabitUtils';
 
 interface HabitCardProps {
   habit: Habit;
-  onToggle: (habitId: string) => void;
+  onToggle: (id: string) => void;
   onLongPress: () => void;
+  onOpenDetail?: () => void;
+  recentBadge?: boolean; // <- used to trigger inline celebration
 }
 
-// FIX 1: Define the component and accept props
-const HabitCard: React.FC<HabitCardProps> = ({ habit, onToggle, onLongPress }) => { 
-  
-  // FIX 2: Initialize the Animated value
+const HabitCard: React.FC<HabitCardProps> = ({ habit, onToggle, onLongPress, onOpenDetail, recentBadge }) => {
   const scale = useRef(new Animated.Value(1)).current;
-
-  // FIX 4: Call the imported function
-  const today = getTodayDate(); 
-  
-  // FIX 3: 'habit' is now available from props
+  const badgeScale = useRef(new Animated.Value(0)).current;
+  const today = getTodayDate();
   const done = habit.completedDates.includes(today);
 
-
   useEffect(() => {
-    // simple pop when status changes
-    // FIX 1: 'Animated' is now imported
-    // FIX 2: 'scale' is now defined
     Animated.sequence([
-      Animated.timing(scale, { toValue: 0.96, duration: 120, useNativeDriver: true }),
-      Animated.timing(scale, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.97, duration: 110, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 180, useNativeDriver: true }),
     ]).start();
   }, [done]);
 
+  useEffect(() => {
+    if (recentBadge) {
+      badgeScale.setValue(0);
+      Animated.spring(badgeScale, { toValue: 1, useNativeDriver: true, friction: 5 }).start();
+      setTimeout(() => {
+        Animated.timing(badgeScale, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+      }, 1800);
+    }
+  }, [recentBadge]);
 
   return (
     <Animated.View style={[styles.wrapper, { transform: [{ scale }] }]}>
       <TouchableOpacity
-        activeOpacity={0.85}
+        activeOpacity={0.9}
         onPress={() => {
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           onToggle(habit.id);
         }}
         onLongPress={onLongPress}
       >
-        <View style={[styles.card, { backgroundColor: habit.color || '#ffffff' }]}>
+        <View style={[styles.card, { backgroundColor: habit.color || '#fff' }]}>
           <View style={styles.left}>
-            <Text style={styles.emoji}>{habit.emoji || '✨'}</Text>
+            <Text style={styles.emoji}>{habit.emoji}</Text>
             <View style={{ marginLeft: 10 }}>
               <Text style={styles.title}>{habit.title}</Text>
               <Text style={styles.cat}>{habit.category}</Text>
+              <Text style={styles.small}>XP: {habit.xp || 0}</Text>
             </View>
           </View>
 
-          {/* FIX: Ionicons needs to be imported */}
-          <Ionicons
-            name={done ? 'checkmark-circle' : 'ellipse-outline'}
-            size={30}
-            color={done ? '#0f9d58' : '#333'}
-          />
+          <View style={{ alignItems: 'flex-end' }}>
+            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={36} color={done ? '#0f9d58' : '#333'} />
+            <TouchableOpacity onPress={onOpenDetail} style={{ marginTop: 6 }}>
+              <Ionicons name="chevron-forward" size={20} color="#333" />
+            </TouchableOpacity>
+
+            {/* inline badge pop */}
+            <Animated.View style={[styles.badgePop, { transform: [{ scale: badgeScale }] }]}>
+              <Text style={{ fontSize: 18 }}>🏅</Text>
+            </Animated.View>
+          </View>
         </View>
       </TouchableOpacity>
     </Animated.View>
   );
 };
 
-
 export default HabitCard;
 
 const styles = StyleSheet.create({
-wrapper: { marginBottom: 12 },
-card: {
-padding: 14,
-borderRadius: 12,
-flexDirection: 'row',
-alignItems: 'center',
-justifyContent: 'space-between',
-elevation: 2,
-},
-left: { flexDirection: 'row', alignItems: 'center' },
-emoji: { fontSize: 28 },
-title: { fontSize: 16, fontWeight: '700', color: '#111' },
-cat: { marginTop: 4, fontSize: 12, color: '#333', opacity: 0.8 },
+  wrapper: { marginBottom: 12 },
+  card: {
+    padding: 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 2,
+  },
+  left: { flexDirection: 'row', alignItems: 'center' },
+  emoji: { fontSize: 34 },
+  title: { fontSize: 16, fontWeight: '700' },
+  cat: { marginTop: 4, fontSize: 12, color: '#333', opacity: 0.85 },
+  small: { fontSize: 11, color: '#333', marginTop: 4 },
+  badgePop: {
+    marginTop: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+  },
 });

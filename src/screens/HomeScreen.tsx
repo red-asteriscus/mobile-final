@@ -1,25 +1,58 @@
-import React from 'react';
+// src/screens/HomeScreen.tsx
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Habit, HomeScreenProps } from '../types/HabitTypes';
-import { getTodayDate, calculateStreak, saveHabits, cancelScheduledNotification } from '../data/HabitUtils';
+import { HomeScreenProps, Habit } from '../types/HabitTypes';
+import { getTodayDate, calculateStreak, saveHabits, cancelScheduledNotifications, awardBadgesForHabit } from '../data/HabitUtils';
+import HabitCard from '../components/HabitCard';
+import BadgeModal from '../components/BadgeModal';
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHabits }) => {
+  const [celebrationBadges, setCelebrationBadges] = useState<string[]>([]);
+  const [celebrationVisible, setCelebrationVisible] = useState(false);
+  const [recentBadgeMap, setRecentBadgeMap] = useState<Record<string, boolean>>({});
+
   const toggleCompletion = async (id: string) => {
     const today = getTodayDate();
-    const updated = habits.map(h =>
-      h.id === id
-        ? {
-            ...h,
-            completedDates: h.completedDates.includes(today)
-              ? h.completedDates.filter(d => d !== today)
-              : [...h.completedDates, today],
-          }
-        : h
-    );
+    const updated = habits.map((h) => {
+      if (h.id !== id) return h;
+      const doneToday = h.completedDates.includes(today);
+      const newCompleted = doneToday ? h.completedDates.filter((d) => d !== today) : [...h.completedDates, today];
+      // xp change on toggle
+      const newXp = doneToday ? Math.max(0, (h.xp || 0) - 1) : (h.xp || 0) + 5;
+      return { ...h, completedDates: newCompleted, xp: newXp };
+    });
 
+    // persist basic change
     setHabits(updated);
     await saveHabits(updated);
+
+    // award badges for the changed habit (find it again)
+    const changed = updated.find((x) => x.id === id);
+    if (!changed) return;
+
+    const result = awardBadgesForHabit(changed);
+    if (result.awarded.length) {
+      // update habit in storage with new badges/xp
+      const merged = updated.map((h) => (h.id === id ? result.updatedHabit! : h));
+      setHabits(merged);
+      await saveHabits(merged);
+
+      // show celebrations:
+      setCelebrationBadges(result.awarded);
+      setCelebrationVisible(true);
+
+      // mark inline animation target for the habit
+      setRecentBadgeMap((m) => ({ ...m, [id]: true }));
+      // remove inline flag after animation time
+      setTimeout(() => {
+        setRecentBadgeMap((m) => {
+          const copy = { ...m };
+          delete copy[id];
+          return copy;
+        });
+      }, 2500);
+    }
   };
 
   const deleteHabit = (habit: Habit) => {
@@ -29,8 +62,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await cancelScheduledNotification(habit.notificationId);
-          const updated = habits.filter(h => h.id !== habit.id);
+          await cancelScheduledNotifications(habit.notificationIds);
+          const updated = habits.filter((h) => h.id !== habit.id);
           setHabits(updated);
           await saveHabits(updated);
         },
@@ -38,34 +71,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
     ]);
   };
 
-  const renderHabit = ({ item }: { item: Habit }) => {
-    const today = getTodayDate();
-    const done = item.completedDates.includes(today);
-    const streak = calculateStreak(item.completedDates);
+  const openDetail = (id: string) => navigation.navigate('Detail', { id });
 
-    return (
-      <TouchableOpacity
-        onPress={() => toggleCompletion(item.id)}
-        onLongPress={() => deleteHabit(item)}
-        style={[styles.card, { borderLeftColor: item.color }]}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={styles.emoji}>{item.emoji}</Text>
-          <View>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.category}>{item.category}</Text>
-            <Text style={styles.streak}>🔥 {streak} day streak</Text>
-          </View>
-        </View>
-
-        <Ionicons
-          name={done ? 'checkbox' : 'square-outline'}
-          size={32}
-          color={done ? '#4CAF50' : '#aaa'}
-        />
-      </TouchableOpacity>
-    );
-  };
+  const renderHabit = ({ item }: { item: Habit }) => (
+    <HabitCard
+      habit={item}
+      onToggle={toggleCompletion}
+      onLongPress={() => deleteHabit(item)}
+      onOpenDetail={() => openDetail(item.id)}
+      recentBadge={!!recentBadgeMap[item.id]}
+    />
+  );
 
   return (
     <View style={styles.container}>
@@ -82,6 +98,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
       <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('AddHabit')}>
         <Ionicons name="add" size={32} color="#fff" />
       </TouchableOpacity>
+
+      <BadgeModal visible={celebrationVisible} badges={celebrationBadges} onClose={() => setCelebrationVisible(false)} />
     </View>
   );
 };
@@ -91,20 +109,6 @@ export default HomeScreen;
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#F8F8F8' },
   header: { fontSize: 28, fontWeight: '700', marginBottom: 20 },
-  card: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 14,
-    borderLeftWidth: 7,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    elevation: 2,
-  },
-  emoji: { fontSize: 36, marginRight: 14 },
-  title: { fontSize: 17, fontWeight: '700' },
-  category: { color: '#777', fontSize: 13, marginTop: 3 },
-  streak: { color: '#FF9800', marginTop: 4 },
   empty: { textAlign: 'center', marginTop: 60, color: '#888' },
   fab: {
     position: 'absolute',

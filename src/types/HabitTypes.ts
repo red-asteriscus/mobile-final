@@ -1,35 +1,57 @@
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
-
-export interface Habit {
-id: string;
-title: string;
-emoji: string; // user selected emoji/icon
-color: string; // hex color for the card
-category: string; // category name
-completedDates: string[]; // Stores 'YYYY-MM-DD' strings
-reminderEnabled: boolean;
-notificationId?: string; // ID used by Expo Notifications to cancel the reminder
-}
-
-
 export type RootTabParamList = {
-Tracker: undefined; // Maps to HomeScreen
-AddHabit: undefined; // Maps to AddHabitScreen
-Stats: undefined; // Maps to StatsScreen
+  Tracker: undefined;
+  AddHabit: undefined;
+  Stats: undefined;
+  Detail: { id: string } | undefined;
 };
 
+export type Habit = {
+  id: string;
+  title: string;
+  emoji: string;
+  color: string;
+  category: string;
+  // completion stored as 'YYYY-MM-DD' strings
+  completedDates: string[];
+  // Frequency: daily, or custom weekdays (0 Sun - 6 Sat)
+  frequency: 'daily' | 'custom';
+  weekdays?: number[]; // e.g., [1,3,5] for Mon Wed Fri
+  // weekly target: if set and frequency is 'weekly' concept (we keep it optional)
+  weeklyTarget?: number;
+  // reminders: array of "HH:MM" strings
+  reminderTimes?: string[];
+  // scheduled notification ids per reminder
+  notificationIds?: string[];
+  // enable one "streak freeze" per 30 days: store last used date 'YYYY-MM-DD' or empty
+  lastStreakFreezeUsed?: string | null;
+  // notes keyed by date (YYYY-MM-DD) -> string (simple)
+  notes?: Record<string, string>;
+  // metadata for gamification
+  xp?: number;
+  badges?: string[]; // list of badge ids
+  // persistent fields
+  createdAt?: string;
+};
 
-export type SetHabits = React.Dispatch<React.SetStateAction<Habit[]>>;
+export type HomeScreenProps = BottomTabScreenProps<RootTabParamList, 'Tracker'> & {
+  habits: Habit[];
+  setHabits: (h: Habit[]) => void;
+};
 
+export type AddHabitProps = BottomTabScreenProps<RootTabParamList, 'AddHabit'> & {
+  habits: Habit[];
+  setHabits: (h: Habit[]) => void;
+};
 
-export interface HabitContextProps {
-habits: Habit[];
-setHabits: SetHabits;
-}
+export type StatsProps = BottomTabScreenProps<RootTabParamList, 'Stats'> & {
+  habits: Habit[];
+  setHabits: (h: Habit[]) => void;
+};
 
-
-// Props definitions for each screen, combining navigation props and custom state props
-export type HomeScreenProps = HabitContextProps & BottomTabScreenProps<RootTabParamList, 'Tracker'>;
-export type AddHabitProps = HabitContextProps & BottomTabScreenProps<RootTabParamList, 'AddHabit'>;
-export type StatsProps = HabitContextProps & BottomTabScreenProps<RootTabParamList, 'Stats'>;
+export type DetailProps = BottomTabScreenProps<RootTabParamList, 'Detail'> & {
+  habits: Habit[];
+  setHabits: (h: Habit[]) => void;
+};
