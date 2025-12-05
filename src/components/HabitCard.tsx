@@ -1,23 +1,29 @@
 // src/components/HabitCard.tsx
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+// Note: This file relies on the @expo/vector-icons package being installed
+import { Ionicons } from '@expo/vector-icons'; 
 import { Habit } from '../types/HabitTypes';
 import { getTodayDate } from '../data/HabitUtils';
 
+// FIX: Ensure this interface includes the 'streak' prop
 interface HabitCardProps {
   habit: Habit;
   onToggle: (id: string) => void;
   onLongPress: () => void;
   onOpenDetail?: () => void;
-  recentBadge?: boolean; // <- used to trigger inline celebration
+  recentBadge?: boolean;
+  streak: number; // <<-- FIX: Added streak prop
 }
 
-const HabitCard: React.FC<HabitCardProps> = ({ habit, onToggle, onLongPress, onOpenDetail, recentBadge }) => {
+const HabitCard: React.FC<HabitCardProps> = ({ habit, onToggle, onLongPress, onOpenDetail, recentBadge, streak }) => {
+// ... (rest of the component logic remains the same)
+
   const scale = useRef(new Animated.Value(1)).current;
   const badgeScale = useRef(new Animated.Value(0)).current;
   const today = getTodayDate();
   const done = habit.completedDates.includes(today);
+  const habitColor = habit.color || '#1D9BF0';
 
   useEffect(() => {
     Animated.sequence([
@@ -46,25 +52,30 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, onToggle, onLongPress, onO
         }}
         onLongPress={onLongPress}
       >
-        <View style={[styles.card, { backgroundColor: habit.color || '#fff' }]}>
+        <View style={[styles.card, { borderColor: habitColor }]}>
           <View style={styles.left}>
-            <Text style={styles.emoji}>{habit.emoji}</Text>
-            <View style={{ marginLeft: 10 }}>
+             <View style={[styles.emojiContainer, { backgroundColor: habitColor + '20' }]}>
+                <Text style={styles.emoji}>{habit.emoji}</Text>
+             </View>
+            
+            <View style={{ marginLeft: 15 }}>
               <Text style={styles.title}>{habit.title}</Text>
-              <Text style={styles.cat}>{habit.category}</Text>
-              <Text style={styles.small}>XP: {habit.xp || 0}</Text>
+              <View style={styles.metaRow}>
+                 <Text style={[styles.metaText, {color: habitColor}]}>🔥 {streak} Day Streak</Text>
+                 <Text style={styles.metaText}> | ✨ {habit.xp || 0} XP</Text>
+              </View>
             </View>
           </View>
 
-          <View style={{ alignItems: 'flex-end' }}>
-            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={36} color={done ? '#0f9d58' : '#333'} />
-            <TouchableOpacity onPress={onOpenDetail} style={{ marginTop: 6 }}>
-              <Ionicons name="chevron-forward" size={20} color="#333" />
+          <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', height: 70 }}>
+            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={36} color={done ? '#4CAF50' : '#aaa'} />
+            
+            <TouchableOpacity onPress={onOpenDetail} style={styles.detailButton}>
+              <Ionicons name="chevron-forward-outline" size={20} color="#666" />
             </TouchableOpacity>
 
-            {/* inline badge pop */}
             <Animated.View style={[styles.badgePop, { transform: [{ scale: badgeScale }] }]}>
-              <Text style={{ fontSize: 18 }}>🏅</Text>
+                <Text style={{ fontSize: 18 }}>🏅</Text>
             </Animated.View>
           </View>
         </View>
@@ -76,28 +87,43 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, onToggle, onLongPress, onO
 export default HabitCard;
 
 const styles = StyleSheet.create({
-  wrapper: { marginBottom: 12 },
+// ... (rest of the styles)
+  wrapper: { marginBottom: 15 },
   card: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 2,
+    backgroundColor: '#fff',
+    borderLeftWidth: 6,
+    elevation: 4, 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    height: 90, 
   },
   left: { flexDirection: 'row', alignItems: 'center' },
-  emoji: { fontSize: 34 },
-  title: { fontSize: 16, fontWeight: '700' },
-  cat: { marginTop: 4, fontSize: 12, color: '#333', opacity: 0.85 },
-  small: { fontSize: 11, color: '#333', marginTop: 4 },
+  emojiContainer: {
+    width: 50, height: 50, borderRadius: 25,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emoji: { fontSize: 24 },
+  title: { fontSize: 17, fontWeight: '700' },
+  metaRow: { flexDirection: 'row', marginTop: 6, alignItems: 'center' },
+  metaText: { fontSize: 12, fontWeight: '600', color: '#666' },
+  detailButton: { marginTop: 6, paddingHorizontal: 4 },
   badgePop: {
-    marginTop: 8,
+    position: 'absolute',
+    top: 50,
+    right: 40,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
+    elevation: 6,
   },
 });

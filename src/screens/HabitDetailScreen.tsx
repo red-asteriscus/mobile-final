@@ -1,3 +1,4 @@
+//src/screens/AddDetailScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
 import { DetailProps } from '../types/HabitTypes';
