@@ -1,17 +1,16 @@
-// src/types/HabitTypes.tsx (Corrected Version)
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 
+/** --- Navigation Params --- */
 export type RootTabParamList = {
     Tracker: undefined;
     AddHabit: undefined;
     Stats: undefined;
-    // Route for HabitDetailScreen
-    Detail: { id: string };
+    Detail: { id: string }; // HabitDetailScreen
 };
 
+/** --- Habit Model --- */
 export type Habit = {
-    // ... (rest of Habit definition is correct)
     id: string;
     title: string;
     emoji: string;
@@ -30,34 +29,32 @@ export type Habit = {
     createdAt?: string;
 };
 
-// FIX: Corrected HabitCardProps to match usage in HomeScreen.tsx
+/** --- HabitCard Props --- */
 export type HabitCardProps = {
     habit: Habit;
-    // FIX 1: Change return type from void to Promise<void>
-    onToggle: (id: string) => Promise<void>; 
+    onToggle: (id: string) => Promise<void>; // must return Promise<void>
     onLongPress: () => void;
     onOpenDetail?: () => void;
     recentBadge?: boolean;
-    // FIX 2: Add the missing 'streak' prop
-    streak: number; 
+    streak: number; // current streak
 };
 
+/** --- Screen Props --- */
 export type HomeScreenProps = BottomTabScreenProps<RootTabParamList, 'Tracker'> & {
     habits: Habit[];
-    setHabits: (h: Habit[]) => void;
+    setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
 };
 
 export type AddHabitProps = BottomTabScreenProps<RootTabParamList, 'AddHabit'> & {
     habits: Habit[];
-    setHabits: (h: Habit[]) => void;
+    setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
 };
 
 export type StatsProps = BottomTabScreenProps<RootTabParamList, 'Stats'> & {
     habits: Habit[];
-    setHabits: (h: Habit[]) => void;
 };
 
 export type DetailProps = BottomTabScreenProps<RootTabParamList, 'Detail'> & {
     habits: Habit[];
-    setHabits: (h: Habit[]) => void;
+    setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
 };

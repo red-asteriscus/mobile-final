@@ -1,46 +1,77 @@
-//src/components/CalendarHeatmap.tsx
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { getLastNDates } from '../data/HabitUtils';
 
-/**
- * Very small calendar heatmap: shows last 28 days as 4 rows x 7 columns.
- * Input: array of date strings (YYYY-MM-DD) that are completed.
- */
-export default function CalendarHeatmap({ completedDates = [] }: { completedDates?: string[] }) {
-  const today = new Date();
-  const days: { key: string; done: boolean }[] = [];
-  for (let i = 27; i >= 0; i--) {
-    const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
-    const key = d.toISOString().slice(0, 10);
-    days.push({ key, done: completedDates.includes(key) });
+interface CalendarHeatmapProps {
+  completedDates: string[];           // dates in "YYYY-MM-DD" format
+  notes?: Record<string, string>;     // optional notes per date
+  onDayPress?: (date: string, note: string) => void; // callback when day is pressed
+  size?: number;                      // square size
+  gap?: number;                       // spacing between squares
+  weeks?: number;                      // how many weeks to show
+}
+
+const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
+  completedDates,
+  notes = {},
+  onDayPress,
+  size = 14,
+  gap = 4,
+  weeks = 12,
+}) => {
+  const dates = getLastNDates(weeks * 7); // generate dates from today backward
+
+  // group dates by week
+  const weeksArr: Date[][] = [];
+  for (let i = 0; i < dates.length; i += 7) {
+    weeksArr.push(dates.slice(i, i + 7));
   }
 
-  const rows: typeof days[] = [];
-  for (let r = 0; r < 4; r++) {
-    rows.push(days.slice(r * 7, r * 7 + 7));
-  }
+  const isCompleted = (date: Date) => {
+    const dStr = date.toISOString().split('T')[0];
+    return completedDates.includes(dStr);
+  };
+
+  const getNote = (date: Date) => {
+    const dStr = date.toISOString().split('T')[0];
+    return notes[dStr] || '';
+  };
 
   return (
-    <View>
-      <Text style={{ marginBottom: 8, fontWeight: '600' }}>Last 28 days</Text>
-      {rows.map((row, i) => (
-        <View key={i} style={styles.row}>
-          {row.map((d) => (
-            <View
-              key={d.key}
-              style={[
-                styles.cell,
-                { backgroundColor: d.done ? '#4CAF50' : '#E0E0E0' },
-              ]}
-            />
-          ))}
+    <View style={{ flexDirection: 'row' }}>
+      {weeksArr.map((week, i) => (
+        <View key={i} style={{ marginRight: gap }}>
+          {week.map((day, idx) => {
+            const dStr = day.toISOString().split('T')[0];
+            const completed = isCompleted(day);
+            const note = getNote(day);
+            return (
+              <TouchableOpacity
+                key={idx}
+                onPress={() => onDayPress?.(dStr, note)}
+                style={[
+                  styles.square,
+                  {
+                    width: size,
+                    height: size,
+                    marginBottom: gap,
+                    backgroundColor: completed ? '#4CAF50' : '#E0E0E0',
+                    borderRadius: 3,
+                  },
+                ]}
+              />
+            );
+          })}
         </View>
       ))}
     </View>
   );
-}
+};
+
+export default CalendarHeatmap;
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', marginBottom: 6 },
-  cell: { width: 22, height: 22, borderRadius: 4, marginRight: 6 },
+  square: {
+    backgroundColor: '#E0E0E0',
+  },
 });
