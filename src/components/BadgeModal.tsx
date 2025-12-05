@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 
 type Props = {
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 17, marginVertical: 4, fontWeight: '600', color: '#555' },
   button: {
     marginTop: 10,
-    backgroundColor: '#1D9BF0',
+    backgroundColor: '#A593E0',
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderRadius: 12,

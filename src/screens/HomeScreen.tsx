@@ -1,17 +1,15 @@
-// src/screens/HomeScreen.tsx
-import React, { useState, useMemo } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Habit } from '../types/HabitTypes';
-import HabitCard from '../components/HabitCard';
-import BadgeModal from '../components/BadgeModal';
-import { getTodayDate, calculateStreak, saveHabits, cancelScheduledNotifications, awardBadgesForHabit } from '../data/HabitUtils';
-import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootTabParamList, RootStackParamList } from '../../app';
+import React, { useMemo, useState } from 'react';
+import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RootStackParamList, RootTabParamList } from '../../app';
+import BadgeModal from '../components/BadgeModal';
+import HabitCard from '../components/HabitCard';
+import { awardBadgesForHabit, calculateStreak, cancelScheduledNotifications, getTodayDate, saveHabits } from '../data/HabitUtils';
+import { Habit } from '../types/HabitTypes';
 
-// --- Props with Composite Type ---
 export type HomeScreenProps = CompositeScreenProps<
   BottomTabScreenProps<RootTabParamList, 'Tracker'>,
   NativeStackScreenProps<RootStackParamList>
@@ -20,7 +18,6 @@ export type HomeScreenProps = CompositeScreenProps<
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
 };
 
-// --- Summary Bar Component ---
 const SummaryBar: React.FC<{ habits: Habit[] }> = ({ habits }) => {
   const today = getTodayDate();
   const total = habits.length;
@@ -31,7 +28,7 @@ const SummaryBar: React.FC<{ habits: Habit[] }> = ({ habits }) => {
   return (
     <View style={summaryStyles.bar}>
       <View style={summaryStyles.statBlock}>
-        <Ionicons name="checkmark-circle-outline" size={24} color="#1D9BF0" />
+        <Ionicons name="checkmark-circle-outline" size={24} color="#A593E0" />
         <Text style={summaryStyles.statValue}>{doneToday}/{total}</Text>
         <Text style={summaryStyles.statLabel}>Completed</Text>
       </View>
@@ -71,20 +68,17 @@ const summaryStyles = StyleSheet.create({
   divider: { width: 1, backgroundColor: '#eee' },
 });
 
-// --- HomeScreen ---
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHabits }) => {
   const [celebrationBadges, setCelebrationBadges] = useState<string[]>([]);
   const [celebrationVisible, setCelebrationVisible] = useState(false);
   const [recentBadgeMap, setRecentBadgeMap] = useState<Record<string, boolean>>({});
 
-  // Precompute streaks
   const habitStreaks = useMemo(() => {
     const map: Record<string, number> = {};
     habits.forEach(habit => { map[habit.id] = calculateStreak(habit); });
     return map;
   }, [habits]);
 
-  // Toggle completion
   const toggleCompletion = async (id: string) => {
     const today = getTodayDate();
     const updated = habits.map(h => {
@@ -93,7 +87,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
       return {
         ...h,
         completedDates: doneToday ? h.completedDates.filter(d => d !== today) : [...h.completedDates, today],
-        xp: Math.max(0, (h.xp || 0) + (doneToday ? -10 : 20)),
+        xp: Math.max(0, (h.xp || 0) + (doneToday ? -20 : 20)),
       };
     });
 
@@ -117,7 +111,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
     }
   };
 
-  // Delete habit
   const deleteHabit = (habit: Habit) => {
     Alert.alert('Delete Habit?', `"${habit.title}" will be removed.`, [
       { text: 'Cancel', style: 'cancel' },
@@ -134,28 +127,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
     ]);
   };
 
-  // Open detail screen
   const openDetail = (habitId: string) => {
-    navigation.getParent()?.navigate('Detail', { habitId }); // ✅ Works with stack navigator parent
+    navigation.getParent()?.navigate('Detail', { habitId });
   };
 
-// Render each habit
   const renderHabit = ({ item }: { item: Habit }) => (
     <HabitCard
       habit={item}
-      onToggle={() => toggleCompletion(item.id)} // Optional: you can keep completion toggle here
+      onToggle={() => toggleCompletion(item.id)}
       onLongPress={() => deleteHabit(item)}
-      onOpenDetail={() => openDetail(item.id)}   // Tapping opens detail
+      onOpenDetail={() => openDetail(item.id)}
       recentBadge={!!recentBadgeMap[item.id]}
       streak={habitStreaks[item.id] || 0}
     />
   );
 
-
   return (
     <View style={styles.container}>
       <Text style={styles.header}>
-        Your Day, {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
+        Today, {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
       </Text>
 
       <SummaryBar habits={habits} />
@@ -198,14 +188,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 20,
     bottom: 30,
-    backgroundColor: '#1D9BF0',
+    backgroundColor: '#A593E0',
     width: 65,
     height: 65,
     borderRadius: 35,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: '#1D9BF0',
+    shadowColor: '#A593E0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,

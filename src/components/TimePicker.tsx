@@ -1,87 +1,75 @@
-// src/components/TimePicker.tsx
-import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
-type TimePickerListProps = {
-  times: Date[];
-  onChange: (idx: number, newTime: Date) => void;
-  onRemove?: (idx: number) => void;
-  openIndex?: number; // index to open immediately
+type TimeInputProps = {
+  value: Date;
+  onChange: (newTime: Date) => void;
 };
 
-const TimePickerList: React.FC<TimePickerListProps> = ({ times, onChange, onRemove, openIndex }) => {
-  const [showIndex, setShowIndex] = useState<number | null>(openIndex ?? null);
-
-  useEffect(() => {
-    if (openIndex !== undefined) setShowIndex(openIndex);
-  }, [openIndex]);
-
-  const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (showIndex === null) return;
-
-    if (event.type === "dismissed") {
-      setShowIndex(null);
-      return;
-    }
-
-    if (selectedDate) {
-      const newTime = new Date(times[showIndex]);
-      newTime.setHours(selectedDate.getHours(), selectedDate.getMinutes());
-      onChange(showIndex, newTime);
-    }
-
-    if (Platform.OS === "android") setShowIndex(null); // auto-hide picker on Android
+const TimeInput: React.FC<TimeInputProps> = ({ value, onChange }) => {
+  const incrementHour = () => {
+    const newTime = new Date(value);
+    newTime.setHours((newTime.getHours() + 1) % 24);
+    onChange(newTime);
   };
 
+  const decrementHour = () => {
+    const newTime = new Date(value);
+    newTime.setHours((newTime.getHours() + 23) % 24); // wrap around 0-23
+    onChange(newTime);
+  };
+
+  const incrementMinute = () => {
+    const newTime = new Date(value);
+    newTime.setMinutes((newTime.getMinutes() + 1) % 60);
+    onChange(newTime);
+  };
+
+  const decrementMinute = () => {
+    const newTime = new Date(value);
+    newTime.setMinutes((newTime.getMinutes() + 59) % 60); // wrap around 0-59
+    onChange(newTime);
+  };
+
+  const hourStr = value.getHours().toString().padStart(2, '0');
+  const minStr = value.getMinutes().toString().padStart(2, '0');
+
   return (
-    <View>
-      {times.map((time, idx) => (
-        <View key={idx} style={styles.row}>
-          <TouchableOpacity style={styles.timeButton} onPress={() => setShowIndex(idx)}>
-            <Text style={styles.timeText}>
-              {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </Text>
-          </TouchableOpacity>
+    <View style={styles.container}>
+      {/* Hours */}
+      <View style={styles.timeUnit}>
+        <TouchableOpacity onPress={incrementHour} style={styles.arrow}>
+          <Text style={styles.arrowText}>▲</Text>
+        </TouchableOpacity>
+        <Text style={styles.timeText}>{hourStr}</Text>
+        <TouchableOpacity onPress={decrementHour} style={styles.arrow}>
+          <Text style={styles.arrowText}>▼</Text>
+        </TouchableOpacity>
+      </View>
 
-          {onRemove && (
-            <TouchableOpacity onPress={() => onRemove(idx)} style={styles.removeButton}>
-              <Ionicons name="trash-outline" size={20} color="#FF4500" />
-            </TouchableOpacity>
-          )}
+      <Text style={styles.separator}>:</Text>
 
-          {showIndex === idx && (
-            <DateTimePicker
-              value={time}
-              mode="time"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              is24Hour={false}
-              onChange={handleChange}
-            />
-          )}
-        </View>
-      ))}
-
-      {Platform.OS === "ios" && showIndex !== null && (
-        <TouchableOpacity style={styles.overlay} onPress={() => setShowIndex(null)} />
-      )}
+      {/* Minutes */}
+      <View style={styles.timeUnit}>
+        <TouchableOpacity onPress={incrementMinute} style={styles.arrow}>
+          <Text style={styles.arrowText}>▲</Text>
+        </TouchableOpacity>
+        <Text style={styles.timeText}>{minStr}</Text>
+        <TouchableOpacity onPress={decrementMinute} style={styles.arrow}>
+          <Text style={styles.arrowText}>▼</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
-export default TimePickerList;
-
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  timeButton: {
-    padding: 12,
-    backgroundColor: "#F0F0F0",
-    borderRadius: 8,
-    flex: 1,
-    alignItems: "center",
-  },
-  timeText: { fontSize: 16, color: "#333" },
-  removeButton: { marginLeft: 10, padding: 5 },
-  overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  container: { flexDirection: 'row', alignItems: 'center' },
+  timeUnit: { alignItems: 'center', justifyContent: 'center' },
+  arrow: { padding: 4 },
+  arrowText: { fontSize: 16, fontWeight: '600' },
+  timeText: { fontSize: 20, fontWeight: '700', marginVertical: 2 },
+  separator: { fontSize: 20, fontWeight: '700', marginHorizontal: 4 },
 });
+
+export default TimeInput;

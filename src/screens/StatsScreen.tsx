@@ -1,10 +1,10 @@
 // src/screens/StatsScreen.tsx
-import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { StatsProps } from '../types/HabitTypes';
-import { getTodayDate, weeklyCompletion, generateInsights, calculateStreak } from '../data/HabitUtils';
+import React, { useEffect } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import CalendarHeatmap from '../components/CalendarHeatmap';
+import { calculateStreak, generateInsights, getTodayDate, weeklyCompletion } from '../data/HabitUtils';
+import { StatsProps } from '../types/HabitTypes';
 
 interface StatBlockProps {
   title: string;
@@ -119,7 +119,7 @@ const StatsScreen: React.FC<StatsProps> = ({ habits = [] }) => {
                   style={{
                     marginTop: 6,
                     fontWeight: '600',
-                    color: wk.rate === 100 ? '#4CAF50' : '#1D9BF0',
+                    color: wk.rate === 100 ? '#4CAF50' : '#A593E0',
                   }}
                 >
                   Week: {wk.completed} / {wk.scheduled} ({wk.rate}%)
@@ -168,11 +168,11 @@ const styles = StyleSheet.create({
   header:{fontSize:26,fontWeight:'800',marginBottom:20},
 
   // Completion Card
-  completionCard:{backgroundColor:'#fff',padding:25,borderRadius:16,alignItems:'center',elevation:5,shadowColor:'#1D9BF0',shadowOffset:{width:0,height:4},shadowOpacity:0.1,shadowRadius:8,marginBottom:20},
+  completionCard:{backgroundColor:'#fff',padding:25,borderRadius:16,alignItems:'center',elevation:5,shadowColor:'#A593E0',shadowOffset:{width:0,height:4},shadowOpacity:0.1,shadowRadius:8,marginBottom:20},
   label:{color:'#555',fontSize:14,fontWeight:'500'},
-  big:{fontSize:56,fontWeight:'800',color:'#1D9BF0',marginTop:6},
+  big:{fontSize:56,fontWeight:'800',color:'#A593E0',marginTop:6},
   progressBg:{width:'100%',height:14,backgroundColor:'#E0E0E0',borderRadius:7,marginTop:15},
-  progressFill:{height:'100%',backgroundColor:'#1D9BF0',borderRadius:7},
+  progressFill:{height:'100%',backgroundColor:'#A593E0',borderRadius:7},
   small:{color:'#777',marginTop:10},
 
   sub:{fontSize:20,fontWeight:'700',marginTop:15,marginBottom:10},

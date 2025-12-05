@@ -1,10 +1,9 @@
-// src/screens/AddHabitScreen.tsx
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, Switch, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AddHabitProps, Habit } from '../types/HabitTypes';
+import React, { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import TimeInput from '../components/TimePicker';
 import { saveHabits, scheduleNotificationsForTimes } from '../data/HabitUtils';
-import TimePickerList from '../components/TimePicker';
+import { AddHabitProps, Habit } from '../types/HabitTypes';
 
 const EMOJIS = ['📚','💪','🧘','🚰','🧹','📝','🎧','🥗','🚶','😴','🎨','💰','🐶'];
 const COLORS = ['#FFD6A5','#A2D2FF','#BDE0FE','#C8FFD4','#F7B7F3','#FFB4A2','#007AFF'];
@@ -21,23 +20,24 @@ const AddHabitScreen: React.FC<AddHabitProps> = ({ navigation, habits, setHabits
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTimes, setReminderTimes] = useState<Date[]>([]);
   const [loading, setLoading] = useState(false);
-  const [openPickerIndex, setOpenPickerIndex] = useState<number | null>(null);
 
-  const toggleWeekday = (index: number) => {
-    setWeekdays(prev => prev.includes(index) ? prev.filter(d=>d!==index) : [...prev,index]);
-  };
+  const toggleWeekday = (index:number) => 
+    setWeekdays(prev => prev.includes(index)? prev.filter(d=>d!==index) : [...prev,index]);
 
+  // --- Fixed: Add new reminder with current time (editable)
   const addReminder = () => {
     if(reminderTimes.length >= 5){
-      Alert.alert('Too many reminders','You can set a maximum of 5 reminders per habit.');
+      Alert.alert('Too many reminders','You can set a maximum of 5 reminders.');
       return;
     }
-    const newTime = new Date(); // default placeholder
+    const now = new Date();
+    const newTime = new Date();
+    newTime.setHours(now.getHours(), now.getMinutes(), 0, 0);
     setReminderTimes(prev => [...prev, newTime]);
-    setOpenPickerIndex(reminderTimes.length); // open picker immediately
   };
 
-  const removeReminder = (idx:number) => setReminderTimes(prev => prev.filter((_,i)=>i!==idx));
+  const removeReminder = (idx:number) => 
+    setReminderTimes(prev => prev.filter((_,i)=>i!==idx));
 
   const onSave = async () => {
     if(!title.trim()) return Alert.alert('Missing Title','Please enter a habit name.');
@@ -45,11 +45,9 @@ const AddHabitScreen: React.FC<AddHabitProps> = ({ navigation, habits, setHabits
 
     setLoading(true);
 
-    const timesStr = reminderTimes.map(d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+    const timesStr = reminderTimes.map(d=>`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
     let notifIds: string[] = [];
-    if(reminderEnabled){
-      notifIds = await scheduleNotificationsForTimes(title.trim(), timesStr);
-    }
+    if(reminderEnabled) notifIds = await scheduleNotificationsForTimes(title.trim(), timesStr);
 
     const newHabit: Habit = {
       id: Date.now().toString(),
@@ -83,18 +81,27 @@ const AddHabitScreen: React.FC<AddHabitProps> = ({ navigation, habits, setHabits
       {/* Habit Name & Icon/Color */}
       <View style={styles.sectionCard}>
         <Text style={styles.label}>Habit Name</Text>
-        <TextInput style={styles.input} placeholder="e.g., Read for 30 minutes" value={title} onChangeText={setTitle} />
+        <TextInput 
+          style={styles.input} 
+          placeholder="e.g., Read for 30 minutes" 
+          value={title} 
+          onChangeText={setTitle}
+        />
 
         <Text style={styles.label}>Icon & Color</Text>
-        <View style={{flexDirection:'row',alignItems:'center'}}>
-          {EMOJIS.map(e => (
-            <TouchableOpacity key={e} onPress={() => setEmoji(e)}>
-              <Text style={[styles.emoji, {opacity: e===emoji?1:0.4, transform:[{scale:e===emoji?1.2:1}]}]}>{e}</Text>
+        <View style={{flexDirection:'row',alignItems:'center',flexWrap:'wrap'}}>
+          {EMOJIS.map(e=>(
+            <TouchableOpacity key={e} onPress={()=>setEmoji(e)}>
+              <Text style={[styles.emoji,{opacity:e===emoji?1:0.4,transform:[{scale:e===emoji?1.2:1}]}]}>{e}</Text>
             </TouchableOpacity>
           ))}
           <View style={{flexDirection:'row',marginLeft:10}}>
             {COLORS.map(c=>(
-              <TouchableOpacity key={c} onPress={()=>setColor(c)} style={[styles.colorDot,{backgroundColor:c,borderWidth:c===color?3:1}]}>
+              <TouchableOpacity 
+                key={c} 
+                onPress={()=>setColor(c)} 
+                style={[styles.colorDot,{backgroundColor:c,borderWidth:c===color?3:1}]}
+              >
                 {c===color && <Ionicons name="checkmark" size={18} color="#333"/>}
               </TouchableOpacity>
             ))}
@@ -104,7 +111,11 @@ const AddHabitScreen: React.FC<AddHabitProps> = ({ navigation, habits, setHabits
         <Text style={styles.label}>Category</Text>
         <View style={{flexDirection:'row',flexWrap:'wrap'}}>
           {CATEGORIES.map(cat=>(
-            <TouchableOpacity key={cat} onPress={()=>setCategory(cat)} style={[styles.chip,{backgroundColor:cat===category?'#1D9BF0':'#E8EBF0'}]}>
+            <TouchableOpacity 
+              key={cat} 
+              onPress={()=>setCategory(cat)} 
+              style={[styles.chip,{backgroundColor:cat===category?'#A593E0':'#E8EBF0'}]}
+            >
               <Text style={{color:cat===category?'#fff':'#333',fontWeight:'500'}}>{cat}</Text>
             </TouchableOpacity>
           ))}
@@ -115,20 +126,29 @@ const AddHabitScreen: React.FC<AddHabitProps> = ({ navigation, habits, setHabits
       <View style={styles.sectionCard}>
         <Text style={styles.label}>Frequency</Text>
         <View style={{flexDirection:'row',marginBottom:12}}>
-          <TouchableOpacity onPress={()=>setFrequency('daily')} style={[styles.freqChip,{backgroundColor:frequency==='daily'?'#1D9BF0':'#E8EBF0'}]}>
+          <TouchableOpacity 
+            onPress={()=>setFrequency('daily')} 
+            style={[styles.freqChip,{backgroundColor:frequency==='daily'?'#A593E0':'#E8EBF0'}]}
+          >
             <Text style={{color:frequency==='daily'?'#fff':'#333',fontWeight:'500'}}>Daily</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={()=>setFrequency('custom')} style={[styles.freqChip,{backgroundColor:frequency==='custom'?'#1D9BF0':'#E8EBF0',marginLeft:8}]}>
+          <TouchableOpacity 
+            onPress={()=>setFrequency('custom')} 
+            style={[styles.freqChip,{backgroundColor:frequency==='custom'?'#A593E0':'#E8EBF0',marginLeft:8}]}
+          >
             <Text style={{color:frequency==='custom'?'#fff':'#333',fontWeight:'500'}}>Custom Weekdays</Text>
           </TouchableOpacity>
         </View>
-
         {frequency==='custom' && (
           <View style={{marginTop:8}}>
             <Text style={styles.subLabel}>Pick specific days</Text>
             <View style={{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',marginTop:8}}>
               {WEEKDAYS.map((d,i)=>(
-                <TouchableOpacity key={d} onPress={()=>toggleWeekday(i)} style={[styles.weekChip,{backgroundColor:weekdays.includes(i)?'#1D9BF0':'#fff',borderWidth:1,borderColor:weekdays.includes(i)?'#1D9BF0':'#ddd'}]}>
+                <TouchableOpacity 
+                  key={d} 
+                  onPress={()=>toggleWeekday(i)} 
+                  style={[styles.weekChip,{backgroundColor:weekdays.includes(i)?'#A593E0':'#fff',borderWidth:1,borderColor:weekdays.includes(i)?'#A593E0':'#ddd'}]}
+                >
                   <Text style={{color:weekdays.includes(i)?'#fff':'#333',fontWeight:'600'}}>{d.slice(0,1)}</Text>
                 </TouchableOpacity>
               ))}
@@ -141,27 +161,35 @@ const AddHabitScreen: React.FC<AddHabitProps> = ({ navigation, habits, setHabits
       <View style={styles.sectionCard}>
         <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
           <Text style={styles.label}>Enable Reminders</Text>
-          <Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{true:'#1D9BF0'}} />
+          <Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{true:'#A593E0'}}/>
         </View>
 
         {reminderEnabled && (
-          <TimePickerList
-            times={reminderTimes}
-            onChange={(idx, newTime) => setReminderTimes(prev => prev.map((t,i)=>i===idx?newTime:t))}
-            onRemove={removeReminder}
-            openIndex={openPickerIndex ?? undefined}
-          />
-        )}
+          <>
+            {reminderTimes.map((time,i)=>(
+              <View key={i} style={{flexDirection:'row',alignItems:'center',marginVertical:4}}>
+                <TimeInput 
+                  value={time} 
+                  onChange={t => setReminderTimes(prev => prev.map((v,j) => i===j?t:v))} 
+                />
+                <TouchableOpacity onPress={()=>removeReminder(i)} style={{marginLeft:8}}>
+                  <Ionicons name="trash-outline" size={24} color="#FF4500"/>
+                </TouchableOpacity>
+              </View>
+            ))}
 
-        {reminderEnabled && reminderTimes.length < 5 && (
-          <TouchableOpacity onPress={addReminder} style={styles.addButton}>
-            <Ionicons name="add-circle-outline" size={20} color="#1D9BF0" style={{marginRight:5}}/>
-            <Text style={{color:'#1D9BF0',fontWeight:'600'}}>Add another time</Text>
-          </TouchableOpacity>
+            {reminderTimes.length < 5 && (
+              <TouchableOpacity 
+                onPress={addReminder} 
+                style={{padding:10,backgroundColor:'#A593E0',borderRadius:10,alignItems:'center',marginVertical:4}}
+              >
+                <Text style={{color:'#fff'}}>Add Reminder</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
       </View>
 
-      {/* Save Button */}
       <TouchableOpacity style={styles.button} onPress={onSave} disabled={loading}>
         <Text style={styles.buttonText}>{loading?'Saving Habit...':'Create Habit'}</Text>
       </TouchableOpacity>
@@ -182,8 +210,7 @@ const styles = StyleSheet.create({
   colorDot:{width:30,height:30,borderRadius:15,marginHorizontal:4,alignItems:'center',justifyContent:'center'},
   chip:{paddingHorizontal:12,paddingVertical:8,borderRadius:20,marginRight:8,marginBottom:8},
   freqChip:{paddingHorizontal:16,paddingVertical:10,borderRadius:10},
-  weekChip:{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',margin:3, ...Platform.select({ios:{width:'12%',height:38},android:{}})},
-  addButton:{flexDirection:'row',alignItems:'center',alignSelf:'flex-start',marginTop:10},
-  button:{backgroundColor:'#1D9BF0',padding:16,borderRadius:12,alignItems:'center',marginTop:30,elevation:5},
+  weekChip:{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center',margin:3},
+  button:{backgroundColor:'#A593E0',padding:16,borderRadius:12,alignItems:'center',marginTop:30,elevation:5},
   buttonText:{color:'white',fontWeight:'800',fontSize:18},
 });

@@ -1,6 +1,5 @@
-// app/index.tsx
-import React, { useState, useEffect } from 'react';
-import { View, StatusBar, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StatusBar, ActivityIndicator, StyleSheet, Animated } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,10 +12,8 @@ import HabitDetailScreen from '../src/screens/HabitDetailScreen';
 import { Habit } from '../src/types/HabitTypes';
 import { loadHabits } from '../src/data/HabitUtils';
 
-// Prevent auto-hide splash
 SplashScreen.preventAutoHideAsync();
 
-// --- Stack & Tab types
 export type RootStackParamList = {
   Launch: undefined;
   MainTabs: undefined;
@@ -32,7 +29,6 @@ export type RootTabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
-// --- Tabs Component
 function Tabs({ habits, setHabits }: { habits: Habit[]; setHabits: React.Dispatch<React.SetStateAction<Habit[]>> }) {
   return (
     <Tab.Navigator
@@ -45,7 +41,7 @@ function Tabs({ habits, setHabits }: { habits: Habit[]; setHabits: React.Dispatc
           else if (route.name === 'Stats') iconName = 'bar-chart';
           return <Ionicons name={iconName as any} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#1D9BF0',
+        tabBarActiveTintColor: '#A593E0',
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: { paddingBottom: 5, height: 60 },
       })}
@@ -63,23 +59,31 @@ function Tabs({ habits, setHabits }: { habits: Habit[]; setHabits: React.Dispatc
   );
 }
 
-// --- Launch Screen
 function LaunchScreen({ onFinish }: { onFinish: () => void }) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    const timer = setTimeout(() => onFinish(), 1500);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1500,
+      useNativeDriver: true,
+    }).start();
+
+    const timer = setTimeout(() => onFinish(), 3000);
     return () => clearTimeout(timer);
   }, []);
 
   return (
     <View style={styles.launchContainer}>
       <StatusBar barStyle="light-content" />
-      <Ionicons name="rocket-outline" size={80} color="#fff" />
+      <Animated.Text style={[styles.launchText, { opacity: fadeAnim }]}>
+        Habit Tracker 🚀
+      </Animated.Text>
       <ActivityIndicator size="large" color="#fff" style={{ marginTop: 20 }} />
     </View>
   );
 }
 
-// --- App Component
 export default function App() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,8 +117,13 @@ export default function App() {
 const styles = StyleSheet.create({
   launchContainer: {
     flex: 1,
-    backgroundColor: '#1D9BF0',
+    backgroundColor: '#A593E0',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  launchText: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#fff',
   },
 });

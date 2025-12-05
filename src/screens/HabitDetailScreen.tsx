@@ -1,160 +1,237 @@
-// src/screens/HabitDetailScreen.tsx
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Habit } from '../types/HabitTypes';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../app';
-import { saveHabits, cancelScheduledNotifications } from '../data/HabitUtils';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import React, { useMemo, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { RootStackParamList } from '../../app/index';
+import CalendarHeatmap from '../components/CalendarHeatmap';
+import TimeInput from '../components/TimePicker';
+import {
+  calculateStreak,
+  getTodayDate,
+  saveHabits,
+  scheduleNotificationsForTimes,
+  weeklyCompletion
+} from '../data/HabitUtils';
+import { Habit } from '../types/HabitTypes';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Detail'> & {
+type DetailProps = NativeStackScreenProps<RootStackParamList, 'Detail'> & {
   habits: Habit[];
   setHabits: React.Dispatch<React.SetStateAction<Habit[]>>;
 };
 
-const HabitDetailScreen: React.FC<Props> = ({ route, navigation, habits, setHabits }) => {
-  const { habitId } = route.params;
-  const habit = habits.find(h => h.id === habitId);
-  if (!habit) return <Text style={{ flex: 1, textAlign: 'center', marginTop: 50 }}>Habit not found</Text>;
+const StatBlock = ({ label, value, icon, color }: { label: string; value: string | number; icon: string; color: string }) => (
+  <View style={detailStyles.statItem}>
+    <Ionicons name={icon as any} size={24} color={color} />
+    <Text style={detailStyles.statValue}>{value}</Text>
+    <Text style={detailStyles.statLabel}>{label}</Text>
+  </View>
+);
 
-  const [notes, setNotes] = useState<Record<string, string>>(habit.notes || {});
-  const [newNoteText, setNewNoteText] = useState('');
-  const [reminderEnabled, setReminderEnabled] = useState(habit.reminderEnabled || false);
-  const [reminderTime, setReminderTime] = useState(habit.reminderTime ? new Date(habit.reminderTime) : new Date());
-  const [showTimePicker, setShowTimePicker] = useState(false);
+const detailStyles = StyleSheet.create({
+  statItem: { flex: 1, alignItems: 'center', paddingVertical: 10 },
+  statValue: { fontSize: 20, fontWeight: '800', marginTop: 4 },
+  statLabel: { fontSize: 12, color: '#666' },
+});
 
-  // --- Notes management ---
-  const saveHabitNotes = async (updatedNotes: Record<string, string>) => {
-    const updatedHabits = habits.map(h => h.id === habit.id ? { ...h, notes: updatedNotes } : h);
-    setHabits(updatedHabits);
-    await saveHabits(updatedHabits);
+const HabitDetailScreen: React.FC<DetailProps> = ({ route, navigation, habits, setHabits }) => {
+  const habitId = route.params.habitId;
+  const habit = habits.find((h) => h.id === habitId);
+
+  if (!habit) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle-outline" size={48} color="#FF4500" />
+        <Text style={styles.errorMessage}>Error: Habit not found.</Text>
+        <TouchableOpacity
+          style={styles.errorButton}
+          // Navigate to Tracker: works if Tracker is in parent tab
+          onPress={() => navigation.getParent()?.navigate('Tracker')}
+        >
+          <Text style={styles.errorButtonText}>Go to Tracker</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const [title, setTitle] = useState(habit.title);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [noteText, setNoteText] = useState(habit.notes?.[getTodayDate()] || '');
+  const [reminderEnabled, setReminderEnabled] = useState((habit.reminderTimes?.length ?? 0) > 0);
+  const [reminderTimes, setReminderTimes] = useState<Date[]>(
+    habit.reminderTimes?.map(t => {
+      const [h, m] = t.split(':').map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return d;
+    }) || []
+  );
+  const [loading, setLoading] = useState(false);
+
+  const { currentStreak, weeklyProgress } = useMemo(() => ({
+    currentStreak: calculateStreak(habit),
+    weeklyProgress: weeklyCompletion(habit),
+  }), [habit]);
+
+  const saveTitle = async () => {
+    if (!title.trim()) return Alert.alert('Error', 'Title cannot be empty.');
+    const updated = habits.map(h => h.id === habit.id ? { ...h, title: title.trim() } : h);
+    setHabits(updated);
+    await saveHabits(updated);
+    setEditingTitle(false);
+    Alert.alert('Success', 'Habit renamed.');
   };
 
-  const addNote = () => {
-    if (!newNoteText.trim()) return;
-    const id = Date.now().toString();
-    const updated = { ...notes, [id]: newNoteText.trim() };
-    setNotes(updated);
-    setNewNoteText('');
-    saveHabitNotes(updated);
+  const addNoteForToday = async () => {
+    const date = getTodayDate();
+    const updated = habits.map(h => h.id === habit.id
+      ? { ...h, notes: { ...(h.notes || {}), [date]: noteText.trim() } }
+      : h
+    );
+    setHabits(updated);
+    await saveHabits(updated);
+    Alert.alert('Success', 'Note saved for today.');
   };
 
-  const editNote = (id: string, text: string) => {
-    const updated = { ...notes, [id]: text };
-    setNotes(updated);
-    saveHabitNotes(updated);
+  const addReminder = () => {
+    if (reminderTimes.length >= 5) return Alert.alert('Max reminders', 'You can add up to 5 reminders.');
+    const defaultTime = new Date();
+    defaultTime.setHours(9, 0, 0, 0);
+    setReminderTimes(prev => [...prev, defaultTime]);
   };
 
-  const deleteNote = (id: string) => {
-    const updated = { ...notes };
-    delete updated[id];
-    setNotes(updated);
-    saveHabitNotes(updated);
+  const removeReminder = (idx: number) => {
+    setReminderTimes(prev => prev.filter((_, i) => i !== idx));
   };
 
-  // --- Delete habit ---
-  const deleteHabit = () => {
-    Alert.alert('Delete Habit?', `Are you sure you want to delete "${habit.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          await cancelScheduledNotifications(habit.notificationIds);
-          const updated = habits.filter(h => h.id !== habit.id);
-          setHabits(updated);
-          await saveHabits(updated);
-          navigation.goBack();
-        }
-      }
-    ]);
-  };
-
-  // --- Reminder management ---
-  const saveReminder = async () => {
-    const updatedHabits = habits.map(h =>
+  const saveReminders = async () => {
+    setLoading(true);
+    let notifIds: string[] = [];
+    if (reminderEnabled) {
+      const timesStr = reminderTimes.map(d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+      notifIds = await scheduleNotificationsForTimes(title, timesStr);
+    }
+    const updated = habits.map(h =>
       h.id === habit.id
-        ? { ...h, reminderEnabled, reminderTime: reminderTime.toISOString() }
+        ? { ...h, reminderTimes: reminderEnabled ? reminderTimes.map(d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`) : [], notificationIds: notifIds }
         : h
     );
-    setHabits(updatedHabits);
-    await saveHabits(updatedHabits);
-    Alert.alert('Reminder Saved', `Reminder ${reminderEnabled ? 'enabled' : 'disabled'} at ${reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+    setHabits(updated);
+    await saveHabits(updated);
+    setLoading(false);
+    Alert.alert('Success', 'Reminders saved.');
+  };
+
+  const renderFrequency = () => {
+    if (habit.frequency === 'daily') return 'Daily';
+    const WEEKDAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const days = (habit.weekdays || []).map(i => WEEKDAYS_SHORT[i]).join(', ');
+    return `Custom: ${days}`;
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 50 }}>
-      
-      {/* Back button and title */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back-outline" size={28} color="#1D9BF0" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>{habit.emoji} {habit.title}</Text>
-      </View>
-
-      {/* Delete Habit */}
-      <TouchableOpacity style={styles.deleteBtn} onPress={deleteHabit}>
-        <Ionicons name="trash-outline" size={22} color="#fff" />
-        <Text style={styles.deleteText}>Delete Habit</Text>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      {/* Back Button */}
+      <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <Ionicons name="arrow-back" size={24} color="#A593E0" />
+        <Text style={{ color: '#A593E0', marginLeft: 6 }}>Back</Text>
       </TouchableOpacity>
 
-      {/* Notes Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notes</Text>
-        {Object.entries(notes).map(([id, text]) => (
-          <View key={id} style={styles.noteRow}>
-            <TextInput
-              style={styles.noteInput}
-              value={text}
-              onChangeText={t => editNote(id, t)}
-            />
-            <TouchableOpacity onPress={() => deleteNote(id)} style={styles.noteDeleteBtn}>
-              <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-            </TouchableOpacity>
-          </View>
-        ))}
-        <View style={styles.newNoteRow}>
-          <TextInput
-            style={[styles.noteInput, { flex: 1 }]}
-            placeholder="Add a new note..."
-            value={newNoteText}
-            onChangeText={setNewNoteText}
-          />
-          <TouchableOpacity onPress={addNote}>
-            <Ionicons name="add-circle-outline" size={28} color="#1D9BF0" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Reminder Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Reminder</Text>
-        <View style={styles.reminderRow}>
-          <Text style={{ fontSize: 16 }}>Enable Reminder</Text>
-          <Switch value={reminderEnabled} onValueChange={setReminderEnabled} />
-        </View>
-        {reminderEnabled && (
+      {/* Header */}
+      <View style={styles.headerRow}>
+        {editingTitle ? (
           <>
-            <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.timePickerBtn}>
-              <Text style={styles.timeText}>Reminder Time: {reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-            </TouchableOpacity>
-            {showTimePicker && (
-              <DateTimePicker
-                value={reminderTime}
-                mode="time"
-                is24Hour={true}
-                display="spinner"
-                onChange={(event, selectedDate) => {
-                  setShowTimePicker(false);
-                  if (selectedDate) setReminderTime(selectedDate);
-                }}
-              />
-            )}
-            <TouchableOpacity style={styles.saveReminderBtn} onPress={saveReminder}>
-              <Text style={styles.saveReminderText}>Save Reminder</Text>
+            <TextInput value={title} onChangeText={setTitle} style={styles.titleInput} />
+            <TouchableOpacity onPress={saveTitle}>
+              <Ionicons name="checkmark" size={26} color="#4CAF50" />
             </TouchableOpacity>
           </>
+        ) : (
+          <>
+            <Text style={styles.header}>{habit.emoji} {habit.title}</Text>
+            <TouchableOpacity onPress={() => setEditingTitle(true)}>
+              <Ionicons name="create-outline" size={26} color="#333" />
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      <Text style={styles.sub}>Category: {habit.category}</Text>
+      <Text style={styles.sub}>Frequency: {renderFrequency()}</Text>
+
+      {/* Stats */}
+      <View style={styles.statContainer}>
+        <StatBlock label="Current Streak" value={currentStreak} icon="flame" color="#FF9800" />
+        <View style={styles.statDivider} />
+        <StatBlock label="Total XP" value={habit.xp || 0} icon="star" color="#4CAF50" />
+        <View style={styles.statDivider} />
+        <StatBlock label="Weekly Rate" value={`${weeklyProgress.rate}%`} icon="trending-up" color="#A593E0" />
+      </View>
+
+      {/* Calendar */}
+      <View style={styles.sectionCard}>
+        <CalendarHeatmap
+          completedDates={habit.completedDates}
+          notes={habit.notes || {}}
+          onDayPress={(date: string, note: string) => setNoteText(note || '')}
+        />
+      </View>
+
+      {/* Daily Note */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionHeader}>Daily Reflection</Text>
+        <TextInput
+          multiline
+          placeholder="Add a quick reflection for today..."
+          style={styles.input}
+          value={noteText}
+          onChangeText={setNoteText}
+        />
+        <TouchableOpacity style={styles.button} onPress={addNoteForToday}>
+          <Text style={styles.buttonText}>Save Note</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Reminders */}
+      <View style={styles.sectionCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.sectionHeader}>Reminders</Text>
+          <Switch value={reminderEnabled} onValueChange={setReminderEnabled} />
+        </View>
+
+        {reminderEnabled && (
+          <>
+            {reminderTimes.map((time, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 6 }}>
+                <TimeInput value={time} onChange={t => setReminderTimes(prev => prev.map((v, j) => i === j ? t : v))} />
+                <TouchableOpacity onPress={() => removeReminder(i)} style={{ marginLeft: 8 }}>
+                  <Ionicons name="trash-outline" size={24} color="#FF4500" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {reminderTimes.length < 5 && (
+              <TouchableOpacity onPress={addReminder} style={styles.addRemBtn}>
+                <Text style={{ color: '#fff' }}>Add Reminder</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={saveReminders} style={[styles.button, { marginTop: 6 }]}>
+              <Text style={styles.buttonText}>{loading ? 'Saving...' : 'Save Reminders'}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      {/* History */}
+      <View style={{ marginTop: 18 }}>
+        <Text style={styles.sectionHeader}>History ({habit.completedDates.length} entries)</Text>
+        {habit.completedDates.length === 0 ? (
+          <Text style={{ color: '#666', marginTop: 8 }}>No completions recorded yet.</Text>
+        ) : (
+          habit.completedDates.slice().reverse().map(d => (
+            <View key={d} style={styles.historyItem}>
+              <Text style={styles.historyDate}>{d}</Text>
+              {habit.notes?.[d] ? <Text style={styles.historyNote}>{habit.notes[d]}</Text> : null}
+            </View>
+          ))
         )}
       </View>
     </ScrollView>
@@ -164,22 +241,60 @@ const HabitDetailScreen: React.FC<Props> = ({ route, navigation, habits, setHabi
 export default HabitDetailScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F2F5', padding: 20 },
-  header: { marginBottom: 20 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  backText: { color: '#1D9BF0', fontWeight: '600', marginLeft: 4, fontSize: 16 },
-  title: { fontSize: 26, fontWeight: '800', color: '#333' },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FF3B30', padding: 12, borderRadius: 12, alignSelf: 'flex-start', marginBottom: 20 },
-  deleteText: { color: '#fff', fontWeight: '600', marginLeft: 6 },
-  section: { backgroundColor: '#fff', borderRadius: 15, padding: 15, marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  noteRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  noteInput: { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#F9F9F9', fontSize: 15 },
-  noteDeleteBtn: { marginLeft: 8 },
-  newNoteRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  reminderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  timePickerBtn: { padding: 12, backgroundColor: '#F0F2F5', borderRadius: 12, marginBottom: 10 },
-  timeText: { fontSize: 16, color: '#333' },
-  saveReminderBtn: { backgroundColor: '#1D9BF0', padding: 12, borderRadius: 12, alignItems: 'center' },
-  saveReminderText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  container: { flex: 1, padding: 20, backgroundColor: '#F0F2F5' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
+  header: { fontSize: 28, fontWeight: '800' },
+  titleInput: { fontSize: 28, fontWeight: '800', borderBottomWidth: 1, borderColor: '#A593E0', flex: 1, marginRight: 8 },
+  sub: { marginTop: 4, color: '#666', fontSize: 14 },
+
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F2F5', padding: 30 },
+  errorMessage: { fontSize: 18, color: '#FF4500', fontWeight: 'bold', marginTop: 10 },
+  errorButton: { marginTop: 20, padding: 10, backgroundColor: '#fff', borderRadius: 8 },
+  errorButtonText: { color: '#A593E0', fontWeight: '700' },
+
+  statContainer: {
+    flexDirection: 'row',
+    marginVertical: 20,
+    justifyContent: 'space-around',
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  statDivider: { width: 1, backgroundColor: '#eee', marginVertical: 10 },
+
+  sectionCard: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  sectionHeader: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
+
+  input: { backgroundColor: '#F9F9F9', minHeight: 90, padding: 15, borderRadius: 10, marginTop: 8, borderWidth: 1, borderColor: '#eee' },
+  button: { marginTop: 12, backgroundColor: '#A593E0', padding: 14, borderRadius: 12, alignItems: 'center' },
+  buttonText: { color: 'white', fontWeight: '700', fontSize: 16 },
+  addRemBtn: { padding: 10, backgroundColor: '#A593E0', borderRadius: 10, alignItems: 'center', marginTop: 4 },
+
+  historyItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderColor: '#ccc',
+    marginBottom: 8,
+  },
+  historyDate: { fontWeight: '600', fontSize: 14, marginBottom: 4 },
+  historyNote: { color: '#555', fontStyle: 'italic', fontSize: 13 },
 });

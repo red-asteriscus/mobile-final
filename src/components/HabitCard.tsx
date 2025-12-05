@@ -1,8 +1,8 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Habit } from '../types/HabitTypes';
+import React, { useEffect, useRef } from 'react';
+import { Animated, LayoutAnimation, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getTodayDate } from '../data/HabitUtils';
+import { Habit } from '../types/HabitTypes';
 
 interface HabitCardProps {
   habit: Habit;
@@ -19,7 +19,7 @@ const HabitCard: React.FC<HabitCardProps> = ({ habit, onToggle, onLongPress, onO
   const checkScale = useRef(new Animated.Value(1)).current;
   const today = getTodayDate();
   const done = habit.completedDates.includes(today);
-  const habitColor = habit.color || '#1D9BF0';
+  const habitColor = habit.color || '#A593E0';
 
   // Card press feedback
   const pressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();
