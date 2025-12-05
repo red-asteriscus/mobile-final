@@ -1,27 +1,38 @@
-import React, { useState } from "react";
+// src/components/TimePicker.tsx
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
 type TimePickerListProps = {
-  times: Date[]; // array of times
-  onChange: (idx: number, newTime: Date) => void; // when a time is updated
-  onRemove?: (idx: number) => void; // optional removal callback
+  times: Date[];
+  onChange: (idx: number, newTime: Date) => void;
+  onRemove?: (idx: number) => void;
+  openIndex?: number; // index to open immediately
 };
 
-const TimePickerList: React.FC<TimePickerListProps> = ({ times, onChange, onRemove }) => {
-  const [showIndex, setShowIndex] = useState<number | null>(null);
+const TimePickerList: React.FC<TimePickerListProps> = ({ times, onChange, onRemove, openIndex }) => {
+  const [showIndex, setShowIndex] = useState<number | null>(openIndex ?? null);
 
-  const handleChange = (event: DateTimePickerEvent, selected?: Date) => {
+  useEffect(() => {
+    if (openIndex !== undefined) setShowIndex(openIndex);
+  }, [openIndex]);
+
+  const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     if (showIndex === null) return;
 
-    if (Platform.OS === "android") setShowIndex(null);
+    if (event.type === "dismissed") {
+      setShowIndex(null);
+      return;
+    }
 
-    if (selected) {
+    if (selectedDate) {
       const newTime = new Date(times[showIndex]);
-      newTime.setHours(selected.getHours(), selected.getMinutes());
+      newTime.setHours(selectedDate.getHours(), selectedDate.getMinutes());
       onChange(showIndex, newTime);
     }
+
+    if (Platform.OS === "android") setShowIndex(null); // auto-hide picker on Android
   };
 
   return (
@@ -52,7 +63,6 @@ const TimePickerList: React.FC<TimePickerListProps> = ({ times, onChange, onRemo
         </View>
       ))}
 
-      {/* iOS overlay to dismiss picker */}
       {Platform.OS === "ios" && showIndex !== null && (
         <TouchableOpacity style={styles.overlay} onPress={() => setShowIndex(null)} />
       )}

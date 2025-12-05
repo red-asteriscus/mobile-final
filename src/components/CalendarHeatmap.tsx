@@ -2,76 +2,136 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { getLastNDates } from '../data/HabitUtils';
 
-interface CalendarHeatmapProps {
-  completedDates: string[];           // dates in "YYYY-MM-DD" format
-  notes?: Record<string, string>;     // optional notes per date
-  onDayPress?: (date: string, note: string) => void; // callback when day is pressed
-  size?: number;                      // square size
-  gap?: number;                       // spacing between squares
-  weeks?: number;                      // how many weeks to show
+interface CalendarProps {
+  completedDates: string[];
+  notes?: Record<string, string>;
+  onDayPress?: (date: string, note: string) => void;
+  weeks?: number;
 }
 
-const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
+const Calendar: React.FC<CalendarProps> = ({
   completedDates,
   notes = {},
   onDayPress,
-  size = 14,
-  gap = 4,
-  weeks = 12,
+  weeks = 6, // show last 6 weeks (42 days)
 }) => {
-  const dates = getLastNDates(weeks * 7); // generate dates from today backward
+  const dates = getLastNDates(weeks * 7);
 
-  // group dates by week
+  // Group by week
   const weeksArr: Date[][] = [];
   for (let i = 0; i < dates.length; i += 7) {
     weeksArr.push(dates.slice(i, i + 7));
   }
 
-  const isCompleted = (date: Date) => {
-    const dStr = date.toISOString().split('T')[0];
-    return completedDates.includes(dStr);
-  };
+  // Helpers
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  const isCompleted = (d: Date) => completedDates.includes(formatDate(d));
+  const getNote = (d: Date) => notes[formatDate(d)] || '';
 
-  const getNote = (date: Date) => {
-    const dStr = date.toISOString().split('T')[0];
-    return notes[dStr] || '';
-  };
+  const todayStr = formatDate(new Date());
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const getMonthName = (d: Date) => monthNames[d.getMonth()];
 
   return (
-    <View style={{ flexDirection: 'row' }}>
-      {weeksArr.map((week, i) => (
-        <View key={i} style={{ marginRight: gap }}>
-          {week.map((day, idx) => {
-            const dStr = day.toISOString().split('T')[0];
-            const completed = isCompleted(day);
-            const note = getNote(day);
-            return (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => onDayPress?.(dStr, note)}
-                style={[
-                  styles.square,
-                  {
-                    width: size,
-                    height: size,
-                    marginBottom: gap,
-                    backgroundColor: completed ? '#4CAF50' : '#E0E0E0',
-                    borderRadius: 3,
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
-      ))}
+    <View style={styles.container}>
+      {weeksArr.map((week, wIndex) => {
+        const firstDay = week[0];
+        const showMonthHeader =
+          wIndex === 0 ||
+          firstDay.getMonth() !== weeksArr[wIndex - 1][0].getMonth();
+
+        return (
+          <View key={wIndex}>
+            {/* === Month Header === */}
+            {showMonthHeader && (
+              <Text style={styles.monthHeader}>{getMonthName(firstDay)}</Text>
+            )}
+
+            {/* === Week Row === */}
+            <View style={styles.weekRow}>
+              {week.map((day, dIndex) => {
+                const dStr = formatDate(day);
+                const completed = isCompleted(day);
+                const note = getNote(day);
+
+                const isToday = dStr === todayStr;
+
+                return (
+                  <TouchableOpacity
+                    key={dIndex}
+                    onPress={() => onDayPress?.(dStr, note)}
+                    style={[
+                      styles.dayTile,
+                      completed && styles.completedDay,
+                      isToday && styles.todayOutline,
+                    ]}
+                  >
+                    <Text style={[styles.dayText, completed && styles.dayTextCompleted]}>
+                      {day.getDate()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 };
 
-export default CalendarHeatmap;
+export default Calendar;
 
 const styles = StyleSheet.create({
-  square: {
-    backgroundColor: '#E0E0E0',
+  container: {
+    paddingVertical: 6,
+  },
+
+  // ==== Month header ====
+  monthHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginVertical: 6,
+    color: '#222',
+  },
+
+  // ==== Week Row ====
+  weekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+
+  // ==== Day Tile ====
+  dayTile: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: '#F2F2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  dayText: {
+    fontSize: 14,
+    color: '#444',
+  },
+
+  // Completed day
+  completedDay: {
+    backgroundColor: 'rgba(76, 175, 80, 0.25)', // soft green
+  },
+
+  dayTextCompleted: {
+    color: '#2E7D32',
+    fontWeight: '600',
+  },
+
+  // Today highlight outline
+  todayOutline: {
+    borderWidth: 2,
+    borderColor: '#4CAF50',
   },
 });

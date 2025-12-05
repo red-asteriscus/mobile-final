@@ -27,6 +27,8 @@ export type Habit = {
     xp?: number;
     badges?: string[];
     createdAt?: string;
+    reminderEnabled?: boolean;
+    reminderTime?: string; // ISO string
 };
 
 /** --- HabitCard Props --- */

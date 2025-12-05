@@ -139,17 +139,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
     navigation.getParent()?.navigate('Detail', { habitId }); // ✅ Works with stack navigator parent
   };
 
-  // Render each habit
+// Render each habit
   const renderHabit = ({ item }: { item: Habit }) => (
     <HabitCard
       habit={item}
-      onToggle={toggleCompletion}
+      onToggle={() => toggleCompletion(item.id)} // Optional: you can keep completion toggle here
       onLongPress={() => deleteHabit(item)}
-      onOpenDetail={() => openDetail(item.id)}
+      onOpenDetail={() => openDetail(item.id)}   // Tapping opens detail
       recentBadge={!!recentBadgeMap[item.id]}
       streak={habitStreaks[item.id] || 0}
     />
   );
+
 
   return (
     <View style={styles.container}>
@@ -173,7 +174,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, habits = [], setHab
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.getParent()?.navigate('AddHabit')}
+        onPress={() => navigation.navigate('AddHabit')}
       >
         <Ionicons name="add" size={32} color="#fff" />
       </TouchableOpacity>
